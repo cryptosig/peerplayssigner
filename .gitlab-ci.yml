@@ -1,0 +1,33 @@
+include:
+  - template: Dependency-Scanning.gitlab-ci.yml
+  
+stages:
+  - test
+  - deploy
+
+test:
+  image: node:latest
+  variables:
+    VUE_APP_BLOCKCHAIN_ENDPOINTS: $BLOCKCHAIN_ENDPOINTS
+  script:
+    - npm ci
+    - npm install --save peerplays-uri
+    - npm run test
+    - npm run build
+  cache:
+    paths:
+      - node_modules/
+  artifacts:
+    paths:
+      - www/
+    
+deploy:
+  stage: deploy
+  dependencies:
+    - test
+  script:
+    - prepare-www
+    - mv www/* /var/www/signer
+  when: manual
+  tags:
+    - signer

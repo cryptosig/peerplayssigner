@@ -1,0 +1,78 @@
+import Vue from 'vue';
+import { idleDetector } from '@/main';
+import PeerplaysService from '@/helpers/PeerplaysService';
+
+const SETTINGS_KEY = 'settings';
+
+const state = {
+  properties: {},
+  steemAddressPrefix: '',
+  chainId: '',
+  language: 'en',
+  timeout: '20',
+  theme: 'white',
+  address: 'https://anyx.io',
+};
+
+const mutations = {
+  saveProperties(_state, result) {
+    Vue.set(_state, 'properties', result);
+  },
+  saveConfig(_state, config) {
+    Vue.set(_state, 'steemAddressPrefix', config.HIVE_ADDRESS_PREFIX);
+    Vue.set(_state, 'chainId', config.HIVE_CHAIN_ID);
+  },
+  saveSettings(_state, settings) {
+    Vue.set(_state, 'language', settings.language || _state.language);
+    Vue.set(_state, 'timeout', settings.timeout || _state.timeout);
+    Vue.set(_state, 'theme', settings.theme || _state.theme);
+    Vue.set(_state, 'address', settings.address || _state.address);
+  },
+};
+
+const actions = {
+  getDynamicGlobalProperties: ({ commit }) =>
+    PeerplaysService.callBlockchainDbApi('get_dynamic_global_properties', [[]]).then(result => {
+      commit('saveProperties', result);
+    }),
+  getConfig: async ({ commit }) => {
+    const config = await PeerplaysService.callBlockchainDbApi('get_config', []);
+    commit('saveConfig', config);
+  },
+  loadSettings: ({ dispatch, commit }) => {
+    const settingsContent = localStorage.getItem(SETTINGS_KEY);
+    if (!settingsContent) {
+      dispatch('getConfig');
+      return;
+    }
+
+    try {
+      const settings = JSON.parse(settingsContent);
+      dispatch('getConfig');
+
+      idleDetector.start(settings.timeout * 60 * 1000, () => {
+        idleDetector.stop();
+        dispatch('logout');
+      });
+
+      commit('saveSettings', settings);
+    } catch (err) {
+      console.error("Couldn't load settings", err);
+    }
+  },
+  saveSettings: ({ dispatch }, settings) => {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch (err) {
+      console.error("Couldn't save settings", err);
+    }
+
+    dispatch('loadSettings');
+  },
+};
+
+export default {
+  state,
+  mutations,
+  actions,
+};
